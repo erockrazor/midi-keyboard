@@ -1,13 +1,44 @@
 <script>
   import * as Tone from "tone";
-  var synth = new Tone.PolySynth(Tone.Synth).toDestination();
-  // Request MIDI access
-  if (navigator.requestMIDIAccess) {
-    console.log("This browser supports WebMIDI!");
+  import Vex from "vexflow";
+  import { onMount } from "svelte";
 
-    navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
-  } else {
-    console.log("WebMIDI is not supported in this browser.");
+  var synth = new Tone.PolySynth().toDestination();
+  onMount(async () => {
+    // Request MIDI access
+    if (navigator.requestMIDIAccess) {
+      console.log("This browser supports WebMIDI!");
+
+      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+    } else {
+      console.log("WebMIDI is not supported in this browser.");
+    }
+    renderNotation();
+  });
+
+  function renderNotation() {
+    // * onMount waits for the DOM to be loaded.
+    const VF = Vex.Flow;
+
+    // Create an SVG renderer and attach it to the DIV element named "vf".
+    const renderer = new VF.Renderer(
+      "notationContainer",
+      VF.Renderer.Backends.SVG
+    );
+
+    // Configure the rendering context.
+    renderer.resize(500, 500);
+    const context = renderer.getContext();
+    context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+    // Create a stave of width 400 at position 10, 40 on the canvas.
+    const stave = new VF.Stave(10, 40, 400);
+
+    // Add a clef and time signature.
+    stave.addClef("treble");
+
+    // Connect it to the rendering context and draw!
+    stave.setContext(context).draw();
   }
 
   // Function to run when requestMIDIAccess is successful
@@ -43,7 +74,6 @@
         }
         break;
       case 128: // note off
-        noteOffCallback(note);
         noteOff(note);
         break;
       // we could easily expand this switch statement to cover other types of commands such as controllers or sysex
@@ -69,11 +99,6 @@
     synth.triggerRelease(noteName);
     //...
   }
-
-  function noteOffCallback(note) {
-    //...
-  }
-
   function getToneNoteFromInteger(note) {
     var noteSub = note % 12;
     var octave = (note - 60 - noteSub) / 12 + 4;
@@ -85,13 +110,6 @@
 
     return noteName;
   }
-
-  // This function will trigger certain animations and advance gameplay
-  // when certain criterion are identified by the noteOn/noteOff listeners
-  // For instance, a lock is unlocked, the timer expires, etc.
-  function runSequence(sequence) {
-    //...
-  }
 </script>
 
 <style>
@@ -99,4 +117,5 @@
 
 <main>
   <h2>Midi Keyboard App</h2>
+  <div id="notationContainer" />
 </main>
