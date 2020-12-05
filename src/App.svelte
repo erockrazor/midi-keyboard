@@ -3,8 +3,14 @@
   import { onMount } from "svelte";
   import abcjs from "abcjs";
   import WebMidi from "webmidi";
+  import { Piano } from "@tonejs/piano";
 
-  const synth = new Tone.PolySynth().toDestination();
+  const piano = new Piano({
+    velocities: 5,
+  }).toDestination();
+  piano.load().then(() => {
+    console.log("Piano Samples loaded.");
+  });
   let targetNote = null;
   let actionPrompt = "Press any midi keyboard key to start the game";
   let points = 0;
@@ -16,10 +22,9 @@
     // * onMount waits for the DOM to be loaded.
     // Request MIDI access
     requestMidiAccess();
-    const randomMidiValue = getRandomNote(60, 72);
+    const randomMidiValue = getRandomNote(48, 72);
     targetNote = getNoteFromMidiInteger(randomMidiValue);
     renderAbcNotation();
-    console.log(targetNote);
   });
 
   function renderAbcNotation() {
@@ -30,23 +35,36 @@
   }
 
   function generateAbcString(targetNote) {
+    console.log(`X:1
+      M:C
+      L:1/4
+      K:C
+      |:${convertNoteToAbcNotation(targetNote)},|]|`);
     return `X:1
       M:C
+      %%staves {V1 V2}
+      V: V1 clef=treble
+      V: V2 clef=bass
       L:1/4
       K:C
       |:${convertNoteToAbcNotation(targetNote)},|]|`;
   }
 
   function convertNoteToAbcNotation(note) {
-    let abcNote = "";
+    let abcNote = note;
     // * We need to first find sharps ex: C#4 to convert them into ^C4
     // * Then flats are ex: _C4
     if (note.includes("#")) {
-      let split = note.split("#");
+      let split = abcNote.split("#");
       abcNote = `^${split.join("")}`;
       console.log(abcNote);
-    } else {
-      return note;
+    }
+    if (abcNote.includes("5")) {
+      abcNote = abcNote.replace("5", "").toLowerCase();
+      console.log(abcNote);
+    } else if (abcNote.includes("3")) {
+      abcNote = `,${abcNote.replace("3", "")}`;
+      console.log(abcNote);
     }
     return abcNote;
   }
@@ -60,10 +78,23 @@
         var input = WebMidi.inputs[1];
         // Listen for a 'note on' message on all channels
         input.addListener("noteon", "all", function (e) {
-          noteOn(e.note.number);
+          console.log(e);
+          noteOn(e.note.number, e.velocity);
         });
         input.addListener("noteoff", "all", function (e) {
           noteOff(e.note.number);
+        });
+        input.addListener("controlchange", "all", function (e) {
+          if (e.controller.name === "holdpedal") {
+            console.log("holdpedal");
+            if (e.value === 127) {
+              piano.pedalDown();
+            }
+            if (e.value === 0) {
+              piano.pedalUp();
+            }
+          }
+          console.log(e);
         });
       }
     });
@@ -74,20 +105,6 @@
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1)) + min;
     // 48 to 72 is c3 to c5
-  }
-
-  // Function to handle noteOn messages (ie. key is pressed)
-  // Think of this like an 'onkeydown' event
-  function noteOn(note) {
-    var noteName = getNoteFromMidiInteger(note);
-    checkForCorrectNote(noteName);
-    console.log(`${noteName} on`);
-    synth.triggerAttack(noteName);
-    if (!timerRunning && readyToStartNewGame) {
-      points = 0;
-      timer();
-    }
-    //...
   }
 
   function timer() {
@@ -111,14 +128,10 @@
   }
 
   function checkForCorrectNote(note) {
-    console.log("target note", targetNote);
-    console.log("note played", note);
     if (note === targetNote) {
       const randomMidiValue = getRandomNote(60, 72);
       targetNote = getNoteFromMidiInteger(randomMidiValue);
-      console.log(targetNote);
       renderAbcNotation();
-      console.log("correct note!");
       if (timerRunning) {
         points = points + 1;
       }
@@ -127,12 +140,25 @@
     }
   }
 
+  // Function to handle noteOn messages (ie. key is pressed)
+  // Think of this like an 'onkeydown' event
+  function noteOn(note, velocity) {
+    var noteName = getNoteFromMidiInteger(note);
+    checkForCorrectNote(noteName);
+    piano.keyDown({ note: noteName, velocity: velocity });
+    if (!timerRunning && readyToStartNewGame) {
+      points = 0;
+      timer();
+    }
+    //...
+  }
+
   // Function to handle noteOff messages (ie. key is released)
   // Think of this like an 'onkeyup' event
   function noteOff(note) {
     var noteName = getNoteFromMidiInteger(note);
-    console.log(`${noteName} off`);
-    synth.triggerRelease(noteName);
+    piano.keyUp({ note: noteName });
+
     //...
   }
   function getNoteFromMidiInteger(note) {
