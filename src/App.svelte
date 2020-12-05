@@ -1,30 +1,71 @@
 <script>
   import * as Tone from "tone";
-  import Vex from "vexflow";
   import { onMount } from "svelte";
+  import abcjs from "abcjs";
+  import WebMidi from "webmidi";
 
   const synth = new Tone.PolySynth().toDestination();
   let targetNote = null;
-  let notation;
-  const VF = Vex.Flow;
+  let actionPrompt = "Press any midi keyboard key to start the game";
+  let points = 0;
+  let highScore = 0;
+  let timerRunning = false;
 
   onMount(async () => {
     // * onMount waits for the DOM to be loaded.
     // Request MIDI access
     requestMidiAccess();
     const randomMidiValue = getRandomNote(60, 72);
-    targetNote = getToneNoteFromInteger(randomMidiValue);
+    targetNote = getNoteFromMidiInteger(randomMidiValue);
+    renderAbcNotation();
     console.log(targetNote);
-    renderNotation(targetNote);
   });
 
-  function requestMidiAccess() {
-    if (navigator.requestMIDIAccess) {
-      console.log("This browser supports WebMIDI!");
-      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+  function renderAbcNotation() {
+    abcjs.renderAbc("paper", generateAbcString(targetNote), {
+      responsive: "resize",
+      add_classes: true,
+    });
+  }
+
+  function generateAbcString(targetNote) {
+    return `X:1
+      M:C
+      L:1/4
+      K:C
+      |:${convertNoteToAbcNotation(targetNote)},|]|`;
+  }
+
+  function convertNoteToAbcNotation(note) {
+    let abcNote = "";
+    // * We need to first find sharps ex: C#4 to convert them into ^C4
+    // * Then flats are ex: _C4
+    if (note.includes("#")) {
+      let split = note.split("#");
+      abcNote = `^${split.join("")}`;
+      console.log(abcNote);
     } else {
-      console.log("WebMIDI is not supported in this browser.");
+      return note;
     }
+    return abcNote;
+  }
+
+  function requestMidiAccess() {
+    WebMidi.enable(function (err) {
+      if (err) {
+        console.log("WebMidi could not be enabled.", err);
+      } else {
+        console.log("WebMidi enabled!");
+        var input = WebMidi.inputs[1];
+        // Listen for a 'note on' message on all channels
+        input.addListener("noteon", "all", function (e) {
+          noteOn(e.note.number);
+        });
+        input.addListener("noteoff", "all", function (e) {
+          noteOff(e.note.number);
+        });
+      }
+    });
   }
 
   function getRandomNote(min, max) {
@@ -34,79 +75,33 @@
     // 48 to 72 is c3 to c5
   }
 
-  function removeCurrentInstanceOfNotation() {
-    return (notation = {});
-  }
-  function removeContentFromNotationContainerBeforeRepaint() {
-    return (document.getElementById("notation-container").innerHTML = "");
-  }
-  function renderNotation(randomNote) {
-    removeCurrentInstanceOfNotation();
-    removeContentFromNotationContainerBeforeRepaint();
-    notation = new VF.Factory({
-      renderer: { elementId: "notation-container" },
-    });
-    const ctx = notation.getContext();
-    ctx.setFillStyle("#fff");
-    ctx.setStrokeStyle("fff");
-    const score = notation.EasyScore();
-    const system = notation.System();
-    system
-      .addStave({
-        voices: [score.voice(score.notes(`${randomNote}/w`, { stem: "up" }))],
-      })
-      .addClef("treble")
-      .addTimeSignature("4/4");
-    notation.draw();
-  }
-
-  // Function to run when requestMIDIAccess is successful
-  function onMIDISuccess(midiAccess) {
-    var inputs = midiAccess.inputs;
-    var outputs = midiAccess.outputs;
-
-    // Attach MIDI event "listeners" to each input
-    for (var input of midiAccess.inputs.values()) {
-      input.onmidimessage = getMIDIMessage;
-    }
-  }
-
-  // Function to run when requestMIDIAccess fails
-  function onMIDIFailure() {
-    console.log("Error: Could not access MIDI devices.");
-  }
-
-  // Function to parse the MIDI messages we receive
-  // For this app, we're only concerned with the actual note value,
-  // but we can parse for other information, as well
-  function getMIDIMessage(message) {
-    var command = message.data[0];
-    var note = message.data[1];
-    var velocity = message.data.length > 2 ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
-
-    switch (command) {
-      case 144: // note on
-        if (velocity > 0) {
-          noteOn(note);
-        } else {
-          noteOff(note);
-        }
-        break;
-      case 128: // note off
-        noteOff(note);
-        break;
-      // we could easily expand this switch statement to cover other types of commands such as controllers or sysex
-    }
-  }
-
   // Function to handle noteOn messages (ie. key is pressed)
   // Think of this like an 'onkeydown' event
   function noteOn(note) {
-    var noteName = getToneNoteFromInteger(note);
+    var noteName = getNoteFromMidiInteger(note);
     checkForCorrectNote(noteName);
     console.log(`${noteName} on`);
     synth.triggerAttack(noteName);
+    if (!timerRunning) {
+      points = 0;
+      timer();
+    }
     //...
+  }
+
+  function timer() {
+    timerRunning = true;
+    actionPrompt = 10;
+    const interval = setInterval(() => {
+      actionPrompt--;
+      if (actionPrompt <= 0) {
+        clearInterval(interval);
+        timerRunning = false;
+        if (points > highScore) {
+          highScore = points;
+        }
+      }
+    }, 1000);
   }
 
   function checkForCorrectNote(note) {
@@ -114,10 +109,13 @@
     console.log("note played", note);
     if (note === targetNote) {
       const randomMidiValue = getRandomNote(60, 72);
-      targetNote = getToneNoteFromInteger(randomMidiValue);
+      targetNote = getNoteFromMidiInteger(randomMidiValue);
       console.log(targetNote);
-      renderNotation(targetNote);
+      renderAbcNotation();
       console.log("correct note!");
+      if (timerRunning) {
+        points = points + 1;
+      }
     } else {
       console.log("WRONG note!");
     }
@@ -126,12 +124,12 @@
   // Function to handle noteOff messages (ie. key is released)
   // Think of this like an 'onkeyup' event
   function noteOff(note) {
-    var noteName = getToneNoteFromInteger(note);
+    var noteName = getNoteFromMidiInteger(note);
     console.log(`${noteName} off`);
     synth.triggerRelease(noteName);
     //...
   }
-  function getToneNoteFromInteger(note) {
+  function getNoteFromMidiInteger(note) {
     var noteSub = note % 12;
     var octave = (note - 60 - noteSub) / 12 + 4;
 
@@ -145,33 +143,17 @@
 </script>
 
 <style>
-  .w-100 {
-    width: 100%;
-  }
-  .h-100 {
-    height: 100vh;
-  }
-  .d-flex {
-    display: flex;
-  }
-  .justify-content-center {
-    justify-content: center;
-  }
-  .text-center {
-    text-align: center;
-  }
-  section {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-  }
 </style>
 
 <main>
   <section class="h-100 d-flex">
-    <p class="text-center">Browser Based Sight Reading Practice Thingamabob</p>
-    <div id="notation-container" class="w-100 d-flex justify-content-center" />
-    <p class="text-center">{targetNote}</p>
+    <h2 class="text-center">{actionPrompt}</h2>
+    <div id="paper" />
+    <div class="d-flex justify-content-around">
+      <p class="text-center">Points: {points}</p>
+      <p class="text-center">High Score: {highScore}</p>
+      <p class="text-center">Note Hint: {targetNote}</p>
+    </div>
     <p class="text-center">Keep learning.</p>
   </section>
 </main>
