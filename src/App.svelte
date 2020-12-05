@@ -10,6 +10,7 @@
   let points = 0;
   let highScore = 0;
   let timerRunning = false;
+  let readyToStartNewGame = true;
 
   onMount(async () => {
     // * onMount waits for the DOM to be loaded.
@@ -82,7 +83,7 @@
     checkForCorrectNote(noteName);
     console.log(`${noteName} on`);
     synth.triggerAttack(noteName);
-    if (!timerRunning) {
+    if (!timerRunning && readyToStartNewGame) {
       points = 0;
       timer();
     }
@@ -91,15 +92,20 @@
 
   function timer() {
     timerRunning = true;
+    readyToStartNewGame = false;
     actionPrompt = 10;
     const interval = setInterval(() => {
       actionPrompt--;
       if (actionPrompt <= 0) {
         clearInterval(interval);
         timerRunning = false;
+        actionPrompt = "Press any midi keyboard key to start the game";
         if (points > highScore) {
           highScore = points;
         }
+        setTimeout(() => {
+          readyToStartNewGame = true;
+        }, 5000);
       }
     }, 1000);
   }
