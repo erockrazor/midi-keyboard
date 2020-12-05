@@ -78,7 +78,6 @@
         var input = WebMidi.inputs[1];
         // Listen for a 'note on' message on all channels
         input.addListener("noteon", "all", function (e) {
-          console.log(e);
           noteOn(e.note.number, e.velocity);
         });
         input.addListener("noteoff", "all", function (e) {
@@ -86,7 +85,6 @@
         });
         input.addListener("controlchange", "all", function (e) {
           if (e.controller.name === "holdpedal") {
-            console.log("holdpedal");
             if (e.value === 127) {
               piano.pedalDown();
             }
@@ -94,7 +92,6 @@
               piano.pedalUp();
             }
           }
-          console.log(e);
         });
       }
     });
@@ -136,7 +133,7 @@
         points = points + 1;
       }
     } else {
-      console.log("WRONG note!");
+      points = points - 1;
     }
   }
 
