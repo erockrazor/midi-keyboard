@@ -45963,22 +45963,22 @@ var app = (function () {
     			p3 = element("p");
     			p3.textContent = "Keep learning.";
     			attr_dev(h2, "class", "text-center");
-    			add_location(h2, file, 155, 4, 4046);
+    			add_location(h2, file, 155, 4, 4069);
     			attr_dev(div0, "id", "paper");
-    			add_location(div0, file, 156, 4, 4094);
+    			add_location(div0, file, 156, 4, 4117);
     			attr_dev(p0, "class", "text-center");
-    			add_location(p0, file, 158, 6, 4167);
+    			add_location(p0, file, 158, 6, 4190);
     			attr_dev(p1, "class", "text-center");
-    			add_location(p1, file, 159, 6, 4217);
+    			add_location(p1, file, 159, 6, 4240);
     			attr_dev(p2, "class", "text-center");
-    			add_location(p2, file, 160, 6, 4274);
+    			add_location(p2, file, 160, 6, 4297);
     			attr_dev(div1, "class", "d-flex justify-content-around");
-    			add_location(div1, file, 157, 4, 4117);
+    			add_location(div1, file, 157, 4, 4140);
     			attr_dev(p3, "class", "text-center");
-    			add_location(p3, file, 162, 4, 4340);
+    			add_location(p3, file, 162, 4, 4363);
     			attr_dev(section, "class", "h-100 d-flex");
-    			add_location(section, file, 154, 2, 4011);
-    			add_location(main, file, 153, 0, 4002);
+    			add_location(section, file, 154, 2, 4034);
+    			add_location(main, file, 153, 0, 4025);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -46121,7 +46121,7 @@ var app = (function () {
     		console.log(`${noteName} on`);
     		synth.triggerAttack(noteName);
 
-    		if (!timerRunning) {
+    		if (!timerRunning && readyToStartNewGame) {
     			$$invalidate(2, points = 0);
     			timer();
     		}
@@ -46149,7 +46149,7 @@ var app = (function () {
     						() => {
     							readyToStartNewGame = true;
     						},
-    						3000
+    						5000
     					);
     				}
     			},
